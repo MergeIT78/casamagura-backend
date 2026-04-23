@@ -37,7 +37,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/stats',   statsRoutes);
 
 // Health check — ping de la Render / UptimeRobot ca sa nu adoarma
-app.get('/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+app.get('/health',     (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
 // 404
 app.use((_req, res) => res.status(404).json({ error: 'Ruta negasita' }));
