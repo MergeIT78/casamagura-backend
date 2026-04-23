@@ -4,9 +4,11 @@ const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
 
-const authRoutes    = require('./routes/auth');
-const contactRoutes = require('./routes/contact');
-const statsRoutes   = require('./routes/stats');
+const authRoutes      = require('./routes/auth');
+const contactRoutes   = require('./routes/contact');
+const statsRoutes     = require('./routes/stats');
+const rezervariRoutes = require('./routes/rezervari');
+const meniuZileiRoutes = require('./routes/meniuZilei');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -32,9 +34,11 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 
 // ── ROUTES ────────────────────────────────────────────────────────────
-app.use('/api/auth',    authRoutes);
-app.use('/api/contact', contactRoutes);
-app.use('/api/stats',   statsRoutes);
+app.use('/api/auth',       authRoutes);
+app.use('/api/contact',    contactRoutes);
+app.use('/api/stats',      statsRoutes);
+app.use('/api/rezervari',  rezervariRoutes);
+app.use('/api/meniu-zilei', meniuZileiRoutes);
 
 // Health check — ping de la Render / UptimeRobot ca sa nu adoarma
 app.get('/health',     (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
