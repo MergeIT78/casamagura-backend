@@ -30,7 +30,9 @@ function tipLabel(tip) {
 }
 
 function platLabel(metoda) {
-  return metoda === 'card' ? 'Card la ridicare' : 'Cash';
+  if (metoda === 'card')        return 'Card la ridicare';
+  if (metoda === 'card-online') return 'Card online (Stripe)';
+  return 'Cash';
 }
 
 // ── Template email restaurant ─────────────────────────────────────────────────
