@@ -14,12 +14,13 @@ const comandaSchema = new Schema({
     nume:    { type: String, required: true, trim: true },
     telefon: { type: String, required: true, trim: true },
     adresa:  { type: String, default: '', trim: true },
+    email:   { type: String, default: '', trim: true },  // optional, pentru confirmare
   },
 
   tip:           { type: String, enum: ['ridicare', 'livrare'], default: 'ridicare' },
   produse:       [itemSchema],
   total:         { type: Number, required: true },
-  metodaPlata:   { type: String, enum: ['cash', 'card'], default: 'cash' },
+  metodaPlata:   { type: String, enum: ['cash', 'card', 'card-online'], default: 'cash' },
   observatii:    { type: String, default: '', trim: true },
 
   status: {
