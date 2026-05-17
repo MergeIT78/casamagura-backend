@@ -29,9 +29,12 @@ const comandaSchema = new Schema({
     default: 'noua',
   },
 
-  // pentru Stripe — se adaugă mai târziu
   stripePaymentId: { type: String, default: '' },
   platita:         { type: Boolean, default: false },
+  refundat:        { type: Boolean, default: false },
+  refundId:        { type: String,  default: '' },
+  refundMotiv:     { type: String,  default: '' },
+  refundAt:        { type: Date,    default: null },
 
 }, { timestamps: true });
 

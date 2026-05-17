@@ -12,6 +12,7 @@ const meniuZileiRoutes = require('./routes/meniuZilei');
 const categoriiRoutes = require('./routes/categorii');
 const produseRoutes   = require('./routes/produse');
 const comenziRoutes   = require('./routes/comenzi');
+const stripeRoutes    = require('./routes/stripe');
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -45,6 +46,7 @@ app.use('/api/meniu-zilei', meniuZileiRoutes);
 app.use('/api/categorii',  categoriiRoutes);
 app.use('/api/produse',    produseRoutes);
 app.use('/api/comenzi',    comenziRoutes);
+app.use('/api/stripe',     stripeRoutes);
 
 // Health check — ping de la Render / UptimeRobot ca sa nu adoarma
 app.get('/health',     (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
