@@ -2,11 +2,15 @@ const jwt = require('jsonwebtoken');
 
 module.exports = function verifyToken(req, res, next) {
   const header = req.headers['authorization'];
-  if (!header) return res.status(401).json({ error: 'Token lipsă' });
+  // EventSource (SSE) nu suportă headers — tokenul vine ca query param ?token=
+  const raw = header
+    ? (header.startsWith('Bearer ') ? header.slice(7) : header)
+    : req.query.token;
 
-  const token = header.startsWith('Bearer ') ? header.slice(7) : header;
+  if (!raw) return res.status(401).json({ error: 'Token lipsă' });
+
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = jwt.verify(raw, process.env.JWT_SECRET);
     next();
   } catch {
     res.status(401).json({ error: 'Token invalid sau expirat' });
