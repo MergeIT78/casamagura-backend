@@ -36,6 +36,10 @@ const comandaSchema = new Schema({
   refundMotiv:     { type: String,  default: '' },
   refundAt:        { type: Date,    default: null },
 
+  // Fiscalizare — marcat după ce programul de casă bate bonul
+  fiscalizat:      { type: Boolean, default: false },
+  fiscalizatAt:    { type: Date,    default: null },
+
 }, { timestamps: true });
 
 // Auto-increment număr comandă
