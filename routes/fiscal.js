@@ -39,7 +39,8 @@ function x(val) {
 function toXML(comenzi) {
   const items = comenzi.map(c => {
     const produse = c.produse.map(p => `
-      <Produs>
+      <Produs idmat="${p.idmat ?? ''}">
+        <IdMat>${p.idmat ?? ''}</IdMat>
         <Nume>${x(p.nume)}</Nume>
         <Cantitate>${p.cantitate}</Cantitate>
         <PretUnitar>${p.pret.toFixed(2)}</PretUnitar>

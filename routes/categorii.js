@@ -21,12 +21,15 @@ router.get('/all', authMiddleware, async (req, res) => {
 // POST — creare categorie (admin)
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { nume, slug, ordine, activa } = req.body;
+    const { idcat, nume, slug, ordine, activa } = req.body;
     if (!nume || !slug) return res.status(400).json({ error: 'Nume și slug obligatorii' });
-    const cat = await Categorie.create({ nume, slug, ordine, activa });
+    const cat = await Categorie.create({
+      idcat: (idcat === '' || idcat == null) ? undefined : Number(idcat),
+      nume, slug, ordine, activa,
+    });
     res.status(201).json(cat);
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Slug-ul există deja' });
+    if (err.code === 11000) return res.status(409).json({ error: 'Slug-ul sau idcat există deja' });
     res.status(500).json({ error: 'Eroare server' });
   }
 });

@@ -2,6 +2,7 @@ const { Schema, model } = require('mongoose');
 
 const itemSchema = new Schema({
   produsId:  { type: Schema.Types.ObjectId, ref: 'Produs' },
+  idmat:     { type: Number },                    // ID casa de marcat — snapshot pt. fiscalizare
   nume:      { type: String, required: true },   // snapshot la momentul comenzii
   pret:      { type: Number, required: true },
   cantitate: { type: Number, required: true, min: 1 },

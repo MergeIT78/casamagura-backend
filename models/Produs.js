@@ -1,6 +1,9 @@
 const { Schema, model } = require('mongoose');
 
 const produsSchema = new Schema({
+  // ID produs din casa de marcat (idmat) — cheia folosită în API-ul fiscal.
+  // STABIL, NU se modifică niciodată — casa de marcat se bazează pe el.
+  idmat:       { type: Number, unique: true, sparse: true, index: true },
   categorie:   { type: Schema.Types.ObjectId, ref: 'Categorie', required: true },
   nume:        { type: String, required: true, trim: true },
   descriere:   { type: String, default: '', trim: true },

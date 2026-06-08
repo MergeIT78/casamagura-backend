@@ -29,11 +29,17 @@ router.get('/all', authMiddleware, async (req, res) => {
 // POST — creare produs (admin)
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { categorie, nume, descriere, pret, imagine, disponibil, ordine, alergeni, gramaj } = req.body;
+    const { idmat, categorie, nume, descriere, pret, imagine, disponibil, ordine, alergeni, gramaj } = req.body;
     if (!categorie || !nume || pret == null) return res.status(400).json({ error: 'Categorie, nume și preț obligatorii' });
-    const produs = await Produs.create({ categorie, nume, descriere, pret, imagine, disponibil, ordine, alergeni, gramaj });
+    const produs = await Produs.create({
+      idmat: (idmat === '' || idmat == null) ? undefined : Number(idmat),
+      categorie, nume, descriere, pret, imagine, disponibil, ordine, alergeni, gramaj,
+    });
     res.status(201).json(produs);
-  } catch { res.status(500).json({ error: 'Eroare server' }); }
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'ID casă de marcat (idmat) deja folosit' });
+    res.status(500).json({ error: 'Eroare server' });
+  }
 });
 
 // PUT — editare produs (admin)

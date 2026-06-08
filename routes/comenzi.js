@@ -1,11 +1,67 @@
 const router  = require('express').Router();
 const Comanda = require('../models/Comanda');
+const Produs  = require('../models/Produs');
 const authMiddleware = require('../middleware/auth');
 const { notificaRestaurant, confirmareClient } = require('../services/email');
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? require('stripe')(process.env.STRIPE_SECRET_KEY)
   : null;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECURITATE: construiește lista de produse + total EXCLUSIV din baza de date.
+// Clientul trimite doar { produsId, cantitate }. Prețul, numele și idmat-ul
+// (ID-ul de casă de marcat) sunt luate din DB — clientul NU poate influența
+// prețul. Returnează { items, total } sau aruncă Error cu mesaj prietenos.
+// ─────────────────────────────────────────────────────────────────────────────
+async function construiesteComanda(produseInput) {
+  if (!Array.isArray(produseInput) || produseInput.length === 0) {
+    const e = new Error('Coșul este gol'); e.status = 400; throw e;
+  }
+
+  // Agregă cantitățile pe produsId (apără-te de linii duplicate)
+  const cantitati = new Map();
+  for (const p of produseInput) {
+    const id  = p?.produsId;
+    const qty = Math.floor(Number(p?.cantitate));
+    if (!id)                 { const e = new Error('Produs invalid în coș');    e.status = 400; throw e; }
+    if (!qty || qty < 1)     { const e = new Error('Cantitate invalidă în coș'); e.status = 400; throw e; }
+    if (qty > 99)            { const e = new Error('Cantitate prea mare');       e.status = 400; throw e; }
+    cantitati.set(String(id), (cantitati.get(String(id)) || 0) + qty);
+  }
+
+  const ids = [...cantitati.keys()];
+  let produseDb;
+  try {
+    produseDb = await Produs.find({ _id: { $in: ids } });
+  } catch {
+    const e = new Error('Produs invalid în coș'); e.status = 400; throw e;
+  }
+  if (produseDb.length !== ids.length) {
+    const e = new Error('Unul sau mai multe produse nu mai există'); e.status = 400; throw e;
+  }
+
+  const items = [];
+  let total = 0;
+  for (const prod of produseDb) {
+    if (!prod.disponibil) {
+      const e = new Error(`Produsul „${prod.nume}" nu mai este disponibil`); e.status = 409; throw e;
+    }
+    const qty = cantitati.get(String(prod._id));
+    total += prod.pret * qty;
+    items.push({
+      produsId:  prod._id,
+      idmat:     prod.idmat,        // ID casa de marcat — snapshot din DB
+      nume:      prod.nume,         // snapshot din DB
+      pret:      prod.pret,         // PREȚ DIN DB — sursă de adevăr
+      cantitate: qty,
+    });
+  }
+
+  // Rotunjire la 2 zecimale (evită erori de virgulă mobilă)
+  total = Math.round(total * 100) / 100;
+  return { items, total };
+}
 
 // ── SSE — trimite comenzi noi în timp real către admin/KDS ──
 const clients = new Set();
@@ -29,11 +85,13 @@ router.get('/stream', authMiddleware, (req, res) => {
 });
 
 // POST /api/comenzi/payment-intent — creaza PaymentIntent Stripe (public)
+// Suma este calculată SERVER-SIDE din prețurile reale din DB, NU din client.
 router.post('/payment-intent', async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Plata online indisponibilă momentan' });
   try {
-    const { total } = req.body;
-    if (!total || total < 1) return res.status(400).json({ error: 'Total invalid' });
+    const { produse } = req.body;
+    const { total } = await construiesteComanda(produse);   // preț din DB
+    if (total < 1) return res.status(400).json({ error: 'Total invalid' });
 
     const pi = await stripe.paymentIntents.create({
       amount:   Math.round(total * 100), // RON → bani
@@ -42,8 +100,10 @@ router.post('/payment-intent', async (req, res) => {
       metadata: { sursa: 'comanda-online' },
     });
 
-    res.json({ clientSecret: pi.client_secret });
+    // Întoarcem și totalul calculat de server (clientul îl poate afișa)
+    res.json({ clientSecret: pi.client_secret, total });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     console.error('Stripe PaymentIntent error:', err.message);
     res.status(500).json({ error: 'Eroare procesare plată' });
   }
@@ -79,24 +139,38 @@ router.post('/', async (req, res) => {
     const { client, tip, produse, metodaPlata, observatii, stripePaymentIntentId } = req.body;
 
     if (!client?.nume || !client?.telefon) return res.status(400).json({ error: 'Nume și telefon obligatorii' });
-    if (!produse?.length) return res.status(400).json({ error: 'Coșul este gol' });
     if (tip === 'livrare' && !client?.adresa) return res.status(400).json({ error: 'Adresa de livrare este obligatorie' });
 
-    // Verifica plata Stripe daca metoda e card-online
+    // ── Construiește comanda din DB (preț + idmat = sursă de adevăr) ──
+    const { items, total } = await construiesteComanda(produse);
+
+    const metoda = ['cash', 'card', 'card-online'].includes(metodaPlata) ? metodaPlata : 'cash';
+
+    // ── Verifică plata Stripe dacă metoda e card-online ──
     let platita = false;
     let stripeId = '';
-    if (metodaPlata === 'card-online') {
+    if (metoda === 'card-online') {
       if (!stripe)                  return res.status(503).json({ error: 'Plata online indisponibilă' });
       if (!stripePaymentIntentId)   return res.status(400).json({ error: 'ID plată lipsă' });
+
+      // Anti-refolosire: același PaymentIntent nu poate fi legat de 2 comenzi
+      const existent = await Comanda.findOne({ stripePaymentId: stripePaymentIntentId });
+      if (existent) return res.status(409).json({ error: 'Plata a fost deja folosită pentru o comandă' });
+
       const pi = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
       if (pi.status !== 'succeeded') return res.status(400).json({ error: 'Plata nu a fost confirmată' });
+
+      // Verifică suma și moneda plătite vs. totalul calculat din DB
+      if (pi.currency !== 'ron' || Math.round(pi.amount) !== Math.round(total * 100)) {
+        console.warn(`⚠️  Refuz comandă: sumă plată (${pi.amount}) ≠ total DB (${Math.round(total*100)})`);
+        return res.status(400).json({ error: 'Suma plătită nu corespunde comenzii' });
+      }
       platita  = true;
       stripeId = stripePaymentIntentId;
     }
 
-    const total = produse.reduce((sum, p) => sum + p.pret * p.cantitate, 0);
     const comanda = await Comanda.create({
-      client, tip, produse, total, metodaPlata, observatii,
+      client, tip, produse: items, total, metodaPlata: metoda, observatii,
       platita, stripePaymentId: stripeId,
     });
 
@@ -109,8 +183,9 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ ok: true, numar: comanda.numar, id: comanda._id });
   } catch (err) {
+    // Erori de validare ale comenzii (preț/stoc/coș) → cod specific
+    if (err.status) return res.status(err.status).json({ error: err.message });
     console.error('Comanda error:', err.message);
-    // Returnam detalii de validare Mongoose in dev, mesaj generic in prod
     const isValidation = err.name === 'ValidationError';
     res.status(500).json({
       error: isValidation ? `Date invalide: ${err.message}` : 'Eroare server',
